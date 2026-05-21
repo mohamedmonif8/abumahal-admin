@@ -24,7 +24,6 @@ function App() {
     text: '#333', gray: '#7f8c8d', success: '#27ae60', warning: '#f39c12'
   };
 
-  // دالة آمنة جداً لجلب المعرف حتى لو كانت البيانات فارغة
   const getId = (item ) => {
     if (!item) return Math.random();
     return item._id || item.id || Math.random();
@@ -40,7 +39,6 @@ function App() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // جلب البيانات مع حماية ضد الانهيار (Crash-Proof)
   const fetchData = useCallback(async () => {
     if (!admin) return;
     try {
@@ -155,7 +153,6 @@ function App() {
     );
   }
 
-  // حساب آمن للإيرادات
   const totalRevenue = (orders || []).filter(o => o && o.status === 'مكتمل').reduce((sum, o) => sum + (o.totalPrice || 0), 0);
 
   return (

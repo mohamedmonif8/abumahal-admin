@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
 function App() {
-  // حفظ جلسة المدير حتى لا يخرج عند تحديث الصفحة
   const [admin, setAdmin] = useState(() => {
     try { return JSON.parse(localStorage.getItem('admin_user')) || null; } 
     catch (e) { return null; }
@@ -25,7 +24,11 @@ function App() {
     text: '#333', gray: '#7f8c8d', success: '#27ae60', warning: '#f39c12'
   };
 
-  const getId = (item ) => item._id || item.id;
+  // دالة آمنة جداً لجلب المعرف حتى لو كانت البيانات فارغة
+  const getId = (item ) => {
+    if (!item) return Math.random();
+    return item._id || item.id || Math.random();
+  };
 
   useEffect(() => {
     if (admin) localStorage.setItem('admin_user', JSON.stringify(admin));
@@ -37,6 +40,7 @@ function App() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // جلب البيانات مع حماية ضد الانهيار (Crash-Proof)
   const fetchData = useCallback(async () => {
     if (!admin) return;
     try {
@@ -46,11 +50,11 @@ function App() {
         fetch(`${API_URL}/api/orders`)
       ]);
 
-      if (usersRes.ok) setUsers(await usersRes.json());
-      if (branchesRes.ok) setBranches(await branchesRes.json());
-      if (catsRes.ok) setCategories(await catsRes.json());
-      if (prodsRes.ok) setProducts(await prodsRes.json());
-      if (ordersRes.ok) setOrders((await ordersRes.json()).reverse());
+      if (usersRes.ok) { const d = await usersRes.json(); if(Array.isArray(d)) setUsers(d); }
+      if (branchesRes.ok) { const d = await branchesRes.json(); if(Array.isArray(d)) setBranches(d); }
+      if (catsRes.ok) { const d = await catsRes.json(); if(Array.isArray(d)) setCategories(d); }
+      if (prodsRes.ok) { const d = await prodsRes.json(); if(Array.isArray(d)) setProducts(d); }
+      if (ordersRes.ok) { const d = await ordersRes.json(); if(Array.isArray(d)) setOrders(d.reverse()); }
     } catch (error) {
       console.error("Fetch error:", error);
     }
@@ -58,7 +62,7 @@ function App() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000); // تحديث البيانات كل 5 ثوانٍ
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -78,9 +82,8 @@ function App() {
     } catch (error) { showToast("خطأ في الاتصال بالخادم"); }
   };
 
-  // دالة لحساب الوقت المستغرق (تقريبي بناءً على وقت الإنشاء والتحديث)
   const calculateTimeTaken = (order) => {
-    if (!order.createdAt || !order.updatedAt) return "غير متوفر";
+    if (!order || !order.createdAt || !order.updatedAt) return "غير متوفر";
     const start = new Date(order.createdAt).getTime();
     const end = new Date(order.updatedAt).getTime();
     const diffMins = Math.round((end - start) / 60000);
@@ -90,7 +93,6 @@ function App() {
     return `${diffMins} دقيقة`;
   };
 
-  // إضافة فرع جديد
   const addBranch = async () => {
     const name = prompt("أدخل اسم الفرع الجديد:");
     if (!name) return;
@@ -102,7 +104,6 @@ function App() {
     } catch (e) { showToast("حدث خطأ"); }
   };
 
-  // إضافة قسم جديد
   const addCategory = async () => {
     const name = prompt("أدخل اسم القسم الجديد:");
     if (!name) return;
@@ -114,7 +115,6 @@ function App() {
     } catch (e) { showToast("حدث خطأ"); }
   };
 
-  // إضافة منتج جديد
   const addProduct = async () => {
     if (categories.length === 0) return showToast("الرجاء إضافة قسم أولاً!");
     const name = prompt("اسم المنتج:");
@@ -131,7 +131,6 @@ function App() {
     } catch (e) { showToast("حدث خطأ"); }
   };
 
-  // حذف عنصر
   const deleteItem = async (type, id) => {
     if (!window.confirm("هل أنت متأكد من الحذف؟")) return;
     try {
@@ -143,7 +142,7 @@ function App() {
   if (!admin) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', direction: 'rtl', backgroundColor: theme.primary, fontFamily: 'sans-serif' }}>
-        {toast && <div style={{ position: 'fixed', top: 20, background: theme.secondary, color: 'white', padding: '15px 30px', borderRadius: '8px' }}>{toast}</div>}
+        {toast && <div style={{ position: 'fixed', top: 20, background: theme.secondary, color: 'white', padding: '15px 30px', borderRadius: '8px', zIndex: 9999 }}>{toast}</div>}
         <div style={{ backgroundColor: theme.card, padding: '40px', borderRadius: '15px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
           <h2 style={{ color: theme.primary, textAlign: 'center', marginBottom: '30px' }}>لوحة تحكم الإدارة 👑</h2>
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -156,13 +155,13 @@ function App() {
     );
   }
 
-  const totalRevenue = orders.filter(o => o.status === 'مكتمل').reduce((sum, o) => sum + o.totalPrice, 0);
+  // حساب آمن للإيرادات
+  const totalRevenue = (orders || []).filter(o => o && o.status === 'مكتمل').reduce((sum, o) => sum + (o.totalPrice || 0), 0);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', direction: 'rtl', backgroundColor: theme.bg, fontFamily: 'sans-serif' }}>
       {toast && <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#333', color: 'white', padding: '15px 30px', borderRadius: '30px', zIndex: 1000 }}>{toast}</div>}
       
-      {/* القائمة الجانبية */}
       <div style={{ width: '250px', backgroundColor: theme.primary, color: 'white', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <h2 style={{ textAlign: 'center', borderBottom: '1px solid #444', paddingBottom: '20px', marginBottom: '20px' }}>أبو مهل - الإدارة</h2>
         
@@ -183,7 +182,6 @@ function App() {
         </div>
       </div>
 
-      {/* المحتوى الرئيسي */}
       <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
         
         {activeTab === 'dashboard' && (
@@ -196,11 +194,11 @@ function App() {
               </div>
               <div style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', borderRight: `5px solid ${theme.success}` }}>
                 <h3 style={{ margin: 0, color: theme.gray }}>إجمالي الطلبات</h3>
-                <p style={{ fontSize: '28px', fontWeight: 'bold', margin: '10px 0 0', color: theme.primary }}>{orders.length}</p>
+                <p style={{ fontSize: '28px', fontWeight: 'bold', margin: '10px 0 0', color: theme.primary }}>{(orders || []).length}</p>
               </div>
               <div style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', borderRight: `5px solid ${theme.warning}` }}>
                 <h3 style={{ margin: 0, color: theme.gray }}>العملاء المسجلين</h3>
-                <p style={{ fontSize: '28px', fontWeight: 'bold', margin: '10px 0 0', color: theme.primary }}>{users.filter(u => u.role === 'عميل').length}</p>
+                <p style={{ fontSize: '28px', fontWeight: 'bold', margin: '10px 0 0', color: theme.primary }}>{(users || []).filter(u => u && u.role === 'عميل').length}</p>
               </div>
             </div>
           </div>
@@ -222,7 +220,7 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map(o => (
+                  {(orders || []).map(o => (
                     <tr key={getId(o)} style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '15px', fontWeight: 'bold' }}>#{getId(o).toString().slice(-4)}</td>
                       <td style={{ padding: '15px' }}>{o.customerName}</td>
@@ -246,7 +244,7 @@ function App() {
           <div>
             <h2 style={{ color: theme.primary, marginBottom: '20px' }}>إدارة المستخدمين والموظفين</h2>
             <div style={{ display: 'grid', gap: '15px' }}>
-              {users.map(u => (
+              {(users || []).map(u => (
                 <div key={getId(u)} style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
                   <div>
                     <strong style={{ fontSize: '18px' }}>{u.name}</strong>
@@ -269,7 +267,7 @@ function App() {
               <button onClick={addBranch} style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة فرع</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
-              {branches.map(b => (
+              {(branches || []).map(b => (
                 <div key={getId(b)} style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
                   <strong style={{ fontSize: '18px' }}>{b.name}</strong>
                   <button onClick={() => deleteItem('branches', getId(b))} style={{ padding: '5px 10px', backgroundColor: theme.secondary, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>
@@ -286,14 +284,14 @@ function App() {
               <button onClick={addProduct} style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة منتج</button>
             </div>
             
-            {categories.map(c => (
+            {(categories || []).map(c => (
               <div key={getId(c)} style={{ marginBottom: '30px', backgroundColor: theme.card, padding: '20px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>
                   <h3 style={{ margin: 0, color: theme.primary }}>{c.name} (ID: {getId(c)})</h3>
                   <button onClick={() => deleteItem('categories', getId(c))} style={{ padding: '5px 10px', backgroundColor: theme.secondary, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف القسم</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
-                  {products.filter(p => p.categoryId === getId(c)).map(p => (
+                  {(products || []).filter(p => p && p.categoryId === getId(c)).map(p => (
                     <div key={getId(p)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px' }}>
                       <div>
                         <strong>{p.name}</strong>

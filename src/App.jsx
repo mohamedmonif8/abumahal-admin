@@ -1,15 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 
 function App() {
-  // ==========================================
-  // 1. تعريف الحالات (States)
-  // ==========================================
   const [admin, setAdmin] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('admin_user')) || null;
-    } catch (error) {
-      return null;
-    }
+    try { return JSON.parse(localStorage.getItem('admin_user')) || null; } 
+    catch (error) { return null; }
   });
 
   const [phone, setPhone] = useState('');
@@ -23,77 +17,43 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [toast, setToast] = useState(null);
 
-  // إعدادات التطبيقات الثلاثة (العميل، الفرع، الإدارة)
   const [settings, setSettings] = useState(() => {
     try { 
       return JSON.parse(localStorage.getItem('global_app_settings')) || {
-        customer: { 
-          name: 'مطعم أبو مهل', 
-          logo: '', 
-          welcome: 'أهلاً بك في مطعمنا! 🍔' 
-        },
-        branch: { 
-          name: 'بوابة المطبخ', 
-          logo: '' 
-        },
-        admin: { 
-          name: 'الإدارة المركزية', 
-          logo: '' 
-        }
+        customer: { name: 'مطعم أبو مهل', logo: '', welcome: 'أهلاً بك في مطعمنا! 🍔' },
+        branch: { name: 'بوابة المطبخ', logo: '' },
+        admin: { name: 'الإدارة المركزية', logo: '' }
       }; 
-    } catch (error) { 
-      return null; 
-    }
+    } catch (error) { return null; }
   });
 
   const API_URL = 'https://abumahal-backend.onrender.com';
 
-  // الألوان المعتمدة للوحة الإدارة
   const theme = {
-    primary: '#1a252f',
-    secondary: '#e31837',
-    bg: '#f4f7f6',
-    card: '#ffffff',
-    text: '#2c3e50',
-    gray: '#95a5a6',
-    success: '#27ae60',
-    warning: '#f39c12',
-    danger: '#e74c3c'
+    primary: '#1a252f', secondary: '#e31837', bg: '#f4f7f6', card: '#ffffff',
+    text: '#2c3e50', gray: '#95a5a6', success: '#27ae60', warning: '#f39c12', danger: '#e74c3c'
   };
 
-  // ==========================================
-  // 2. التأثيرات (Effects )
-  // ==========================================
-  
-  // حفظ بيانات المدير في المتصفح
-  useEffect(() => {
-    if (admin) {
-      localStorage.setItem('admin_user', JSON.stringify(admin));
-    } else {
-      localStorage.removeItem('admin_user');
-    }
+  useEffect(( ) => {
+    if (admin) localStorage.setItem('admin_user', JSON.stringify(admin));
+    else localStorage.removeItem('admin_user');
   }, [admin]);
 
-  // حفظ الإعدادات في المتصفح
   useEffect(() => {
     localStorage.setItem('global_app_settings', JSON.stringify(settings));
   }, [settings]);
 
-  // دالة إظهار الإشعارات
   const showToast = useCallback((msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // دالة جلب البيانات من السيرفر
   const fetchData = useCallback(async () => {
     if (!admin) return;
     try {
       const [usersRes, branchesRes, catsRes, prodsRes, ordersRes] = await Promise.all([
-        fetch(`${API_URL}/api/users`),
-        fetch(`${API_URL}/api/branches`),
-        fetch(`${API_URL}/api/categories`),
-        fetch(`${API_URL}/api/products`),
+        fetch(`${API_URL}/api/users`), fetch(`${API_URL}/api/branches`),
+        fetch(`${API_URL}/api/categories`), fetch(`${API_URL}/api/products`),
         fetch(`${API_URL}/api/orders`)
       ]);
 
@@ -101,204 +61,103 @@ function App() {
       if (branchesRes.ok) setBranches(await branchesRes.json());
       if (catsRes.ok) setCategories(await catsRes.json());
       if (prodsRes.ok) setProducts(await prodsRes.json());
-      
       if (ordersRes.ok) {
         const data = await ordersRes.json();
         setOrders(Array.isArray(data) ? data.reverse() : []);
       }
-    } catch (error) {
-      console.error("خطأ في جلب البيانات:", error);
-    }
+    } catch (error) { console.error("Fetch error:", error); }
   }, [admin]);
 
-  // تحديث البيانات كل 5 ثوانٍ
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // ==========================================
-  // 3. الدوال (Functions)
-  // ==========================================
-
-  // تسجيل الدخول
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
       const res = await fetch(`${API_URL}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, password })
       });
-      
       const data = await res.json();
-      
-      if (data.error) {
-        return showToast(data.error);
-      }
-      
-      if (data.role !== 'مدير') {
-        return showToast("عذراً، هذه البوابة مخصصة للمدراء فقط!");
-      }
-      
-      setAdmin(data);
-      showToast(`أهلاً بك يا ${data.name}`);
-    } catch (error) {
-      showToast("خطأ في الاتصال بالخادم");
-    }
+      if (data.error) return showToast(data.error);
+      if (data.role !== 'مدير') return showToast("عذراً، هذه البوابة للمدراء فقط!");
+      setAdmin(data); showToast(`أهلاً بك يا ${data.name}`);
+    } catch (error) { showToast("خطأ في الاتصال بالخادم"); }
   };
 
-  // إضافة موظف جديد
   const addEmployee = async () => {
     const name = prompt("اسم الموظف:");
     const empPhone = prompt("رقم جوال الموظف:");
     const empPass = prompt("الرقم السري للموظف:");
     const branch = prompt(`اختر الفرع:\n${branches.map(b => b.name).join(' | ')}`);
-    
-    if (!name || !empPhone || !empPass || !branch) {
-      return showToast("يجب إدخال جميع البيانات");
-    }
-    
+    if (!name || !empPhone || !empPass || !branch) return showToast("يجب إدخال جميع البيانات");
     try {
       await fetch(`${API_URL}/api/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, phone: empPhone, password: empPass, role: 'موظف', branch })
       });
-      
-      fetchData();
-      showToast("تمت إضافة الموظف بنجاح");
-    } catch (error) {
-      showToast("حدث خطأ أثناء إضافة الموظف");
-    }
+      fetchData(); showToast("تمت إضافة الموظف بنجاح");
+    } catch (error) { showToast("حدث خطأ"); }
   };
 
-  // إضافة منتج جديد مع صورة
   const addProduct = async () => {
-    if (categories.length === 0) {
-      return showToast("الرجاء إضافة قسم أولاً!");
-    }
-    
+    if (categories.length === 0) return showToast("الرجاء إضافة قسم أولاً!");
     const name = prompt("اسم المنتج:");
     const price = prompt("السعر:");
     const imageUrl = prompt("رابط صورة المنتج (اختياري):") || "";
     const categoryId = prompt(`أدخل رقم القسم:\n${categories.map(c => `${c.id}: ${c.name}`).join('\n')}`);
-    
     if (!name || !price || !categoryId) return;
-    
     try {
       await fetch(`${API_URL}/api/products`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name, 
-          price: parseFloat(price), 
-          categoryId: parseInt(categoryId), 
-          imageUrl 
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, price: parseFloat(price), categoryId: parseInt(categoryId), imageUrl })
       });
-      
-      fetchData();
-      showToast("تمت إضافة المنتج بنجاح");
-    } catch (error) {
-      showToast("حدث خطأ أثناء إضافة المنتج");
-    }
+      fetchData(); showToast("تمت إضافة المنتج بنجاح");
+    } catch (error) { showToast("حدث خطأ"); }
   };
 
-  // حذف عنصر (موظف، فرع، قسم، منتج)
   const deleteItem = async (type, id) => {
-    if (!window.confirm("هل أنت متأكد من الحذف؟ لا يمكن التراجع عن هذا الإجراء.")) return;
-    
+    if (!window.confirm("هل أنت متأكد من الحذف؟")) return;
     try {
-      await fetch(`${API_URL}/api/${type}/${id}`, { 
-        method: 'DELETE' 
-      });
-      
-      fetchData();
-      showToast("تم الحذف بنجاح");
-    } catch (error) {
-      showToast("حدث خطأ أثناء الحذف");
-    }
+      await fetch(`${API_URL}/api/${type}/${id}`, { method: 'DELETE' });
+      fetchData(); showToast("تم الحذف بنجاح");
+    } catch (error) { showToast("حدث خطأ أثناء الحذف"); }
   };
 
-  // حفظ الإعدادات
   const saveSettings = () => {
     localStorage.setItem('global_app_settings', JSON.stringify(settings));
     showToast("تم حفظ إعدادات التطبيقات بنجاح ✅");
   };
 
-  // ==========================================
-  // 4. واجهة تسجيل الدخول
-  // ==========================================
   if (!admin) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', direction: 'rtl', backgroundColor: theme.primary, fontFamily: 'sans-serif' }}>
-        {toast && (
-          <div style={{ position: 'fixed', top: 20, background: theme.secondary, color: 'white', padding: '15px 30px', borderRadius: '8px', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
-            {toast}
-          </div>
-        )}
-        
+        {toast && <div style={{ position: 'fixed', top: 20, background: theme.secondary, color: 'white', padding: '15px 30px', borderRadius: '8px', zIndex: 9999 }}>{toast}</div>}
         <div style={{ backgroundColor: theme.card, padding: '40px', borderRadius: '15px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
           <div style={{ textAlign: 'center', fontSize: '50px', marginBottom: '10px' }}>👑</div>
-          <h2 style={{ color: theme.primary, textAlign: 'center', marginBottom: '30px' }}>
-            {settings.admin.name}
-          </h2>
-          
+          <h2 style={{ color: theme.primary, textAlign: 'center', marginBottom: '30px' }}>{settings.admin.name}</h2>
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <input 
-              type="tel" 
-              placeholder="رقم الجوال" 
-              value={phone} 
-              onChange={e => setPhone(e.target.value)} 
-              required 
-              style={{ padding: '15px', borderRadius: '8px', border: '1px solid #ddd', outline: 'none', fontSize: '16px' }} 
-            />
-            <input 
-              type="password" 
-              placeholder="الرقم السري" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)} 
-              required 
-              style={{ padding: '15px', borderRadius: '8px', border: '1px solid #ddd', outline: 'none', fontSize: '16px' }} 
-            />
-            <button 
-              type="submit" 
-              style={{ padding: '15px', border: 'none', borderRadius: '8px', backgroundColor: theme.secondary, color: 'white', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
-            >
-              دخول الإدارة
-            </button>
+            <input type="tel" placeholder="رقم الجوال" value={phone} onChange={e => setPhone(e.target.value)} required style={{ padding: '15px', borderRadius: '8px', border: '1px solid #ddd', outline: 'none', fontSize: '16px' }} />
+            <input type="password" placeholder="الرقم السري" value={password} onChange={e => setPassword(e.target.value)} required style={{ padding: '15px', borderRadius: '8px', border: '1px solid #ddd', outline: 'none', fontSize: '16px' }} />
+            <button type="submit" style={{ padding: '15px', border: 'none', borderRadius: '8px', backgroundColor: theme.secondary, color: 'white', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>دخول الإدارة</button>
           </form>
         </div>
       </div>
     );
   }
 
-  // حساب إجمالي المبيعات
-  const totalRevenue = (orders || [])
-    .filter(o => o.status === 'مكتمل')
-    .reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+  const totalRevenue = (orders || []).filter(o => o.status === 'مكتمل').reduce((sum, o) => sum + (o.totalPrice || 0), 0);
 
-  // ==========================================
-  // 5. واجهة لوحة التحكم الرئيسية
-  // ==========================================
   return (
     <div style={{ display: 'flex', minHeight: '100vh', direction: 'rtl', backgroundColor: theme.bg, fontFamily: 'sans-serif' }}>
-      {toast && (
-        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#333', color: 'white', padding: '15px 30px', borderRadius: '30px', zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
-          {toast}
-        </div>
-      )}
+      {toast && <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#333', color: 'white', padding: '15px 30px', borderRadius: '30px', zIndex: 1000 }}>{toast}</div>}
       
-      {/* القائمة الجانبية (Sidebar) */}
       <div style={{ width: '260px', backgroundColor: theme.primary, color: 'white', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '2px 0 10px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', borderBottom: '1px solid #34495e', paddingBottom: '20px', marginBottom: '20px' }}>
-          {settings.admin.logo ? (
-            <img src={settings.admin.logo} alt="Logo" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '10px', border: '2px solid white' }} />
-          ) : (
-            <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>
-          )}
+          {settings.admin.logo ? <img src={settings.admin.logo} alt="Logo" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '10px', border: '2px solid white' }} /> : <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>}
           <h3 style={{ margin: 0 }}>{settings.admin.name}</h3>
           <span style={{ fontSize: '12px', color: theme.gray }}>لوحة التحكم الرئيسية</span>
         </div>
@@ -311,84 +170,43 @@ function App() {
           { id: 'menu', name: '🍔 المنتجات والصور' },
           { id: 'settings', name: '⚙️ إعدادات النظام' }
         ].map(tab => (
-          <button 
-            key={tab.id} 
-            onClick={() => setActiveTab(tab.id)} 
-            style={{ 
-              padding: '15px', 
-              backgroundColor: activeTab === tab.id ? theme.secondary : 'transparent', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              textAlign: 'right', 
-              fontSize: '16px', 
-              cursor: 'pointer', 
-              fontWeight: 'bold', 
-              transition: '0.2s' 
-            }}
-          >
-            {tab.name}
-          </button>
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding: '15px', backgroundColor: activeTab === tab.id ? theme.secondary : 'transparent', color: 'white', border: 'none', borderRadius: '8px', textAlign: 'right', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>{tab.name}</button>
         ))}
         
         <div style={{ marginTop: 'auto' }}>
-          <button 
-            onClick={() => setAdmin(null)} 
-            style={{ width: '100%', padding: '15px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}
-          >
-            تسجيل الخروج
-          </button>
+          <button onClick={() => setAdmin(null)} style={{ width: '100%', padding: '15px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>تسجيل الخروج</button>
         </div>
       </div>
 
-      {/* محتوى الصفحة (Main Content) */}
       <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
         
-        {/* تبويب الإحصائيات */}
         {activeTab === 'dashboard' && (
           <div>
             <h2 style={{ color: theme.text, marginBottom: '20px' }}>نظرة عامة</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-              
               <div style={{ backgroundColor: theme.card, padding: '25px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderRight: `5px solid ${theme.secondary}` }}>
                 <h3 style={{ margin: 0, color: theme.gray }}>إجمالي المبيعات</h3>
-                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0 0', color: theme.text }}>
-                  {totalRevenue} ريال
-                </p>
+                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0 0', color: theme.text }}>{totalRevenue} ريال</p>
               </div>
-              
               <div style={{ backgroundColor: theme.card, padding: '25px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderRight: `5px solid ${theme.success}` }}>
                 <h3 style={{ margin: 0, color: theme.gray }}>إجمالي الطلبات</h3>
-                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0 0', color: theme.text }}>
-                  {(orders || []).length}
-                </p>
+                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0 0', color: theme.text }}>{(orders || []).length}</p>
               </div>
-              
               <div style={{ backgroundColor: theme.card, padding: '25px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderRight: `5px solid ${theme.warning}` }}>
                 <h3 style={{ margin: 0, color: theme.gray }}>إجمالي العملاء</h3>
-                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0 0', color: theme.text }}>
-                  {(users || []).filter(u => u.role === 'عميل').length}
-                </p>
+                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0 0', color: theme.text }}>{(users || []).filter(u => u.role === 'عميل').length}</p>
               </div>
-              
             </div>
           </div>
         )}
 
-        {/* تبويب الطلبات */}
         {activeTab === 'orders' && (
           <div>
             <h2 style={{ color: theme.text, marginBottom: '20px' }}>مراقبة الطلبات الحية</h2>
             <div style={{ backgroundColor: theme.card, borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
                 <thead style={{ backgroundColor: theme.primary, color: 'white' }}>
-                  <tr>
-                    <th style={{ padding: '15px' }}>رقم الطلب</th>
-                    <th style={{ padding: '15px' }}>العميل</th>
-                    <th style={{ padding: '15px' }}>الفرع</th>
-                    <th style={{ padding: '15px' }}>الحالة</th>
-                    <th style={{ padding: '15px' }}>الإجمالي</th>
-                  </tr>
+                  <tr><th style={{ padding: '15px' }}>رقم الطلب</th><th style={{ padding: '15px' }}>العميل</th><th style={{ padding: '15px' }}>الفرع</th><th style={{ padding: '15px' }}>الحالة</th><th style={{ padding: '15px' }}>الإجمالي</th></tr>
                 </thead>
                 <tbody>
                   {(orders || []).map(o => (
@@ -396,21 +214,8 @@ function App() {
                       <td style={{ padding: '15px', fontWeight: 'bold' }}>#{o.id}</td>
                       <td style={{ padding: '15px' }}>{o.customerName}</td>
                       <td style={{ padding: '15px' }}>{o.branch}</td>
-                      <td style={{ padding: '15px' }}>
-                        <span style={{ 
-                          padding: '5px 10px', 
-                          borderRadius: '20px', 
-                          fontSize: '12px', 
-                          backgroundColor: o.status === 'مكتمل' ? '#e8f8f5' : '#fef5e7', 
-                          color: o.status === 'مكتمل' ? theme.success : theme.warning,
-                          fontWeight: 'bold'
-                        }}>
-                          {o.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '15px', fontWeight: 'bold', color: theme.secondary }}>
-                        {o.totalPrice} ريال
-                      </td>
+                      <td style={{ padding: '15px' }}><span style={{ padding: '5px 10px', borderRadius: '20px', fontSize: '12px', backgroundColor: o.status === 'مكتمل' ? '#e8f8f5' : '#fef5e7', color: o.status === 'مكتمل' ? theme.success : theme.warning, fontWeight: 'bold' }}>{o.status}</span></td>
+                      <td style={{ padding: '15px', fontWeight: 'bold', color: theme.secondary }}>{o.totalPrice} ريال</td>
                     </tr>
                   ))}
                 </tbody>
@@ -419,141 +224,69 @@ function App() {
           </div>
         )}
 
-        {/* تبويب المستخدمين والموظفين */}
         {activeTab === 'users' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ color: theme.text, margin: 0 }}>إدارة الموظفين والعملاء</h2>
-              <button 
-                onClick={addEmployee} 
-                style={{ padding: '10px 20px', backgroundColor: theme.secondary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                + إضافة موظف جديد
-              </button>
+              <button onClick={addEmployee} style={{ padding: '10px 20px', backgroundColor: theme.secondary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة موظف جديد</button>
             </div>
-            
             <div style={{ display: 'grid', gap: '15px' }}>
               {(users || []).map(u => (
                 <div key={u.id} style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
                   <div>
                     <strong style={{ fontSize: '18px' }}>{u.name}</strong>
-                    <span style={{ 
-                      margin: '0 10px', 
-                      padding: '5px 10px', 
-                      backgroundColor: u.role === 'موظف' ? '#e8f8f5' : '#f4f6f6', 
-                      color: u.role === 'موظف' ? theme.success : theme.gray, 
-                      borderRadius: '5px', 
-                      fontSize: '12px', 
-                      fontWeight: 'bold' 
-                    }}>
-                      {u.role}
-                    </span>
-                    <div style={{ color: theme.gray, marginTop: '5px' }}>
-                      {u.phone} {u.branch && `| 🏪 فرع: ${u.branch}`}
-                    </div>
+                    <span style={{ margin: '0 10px', padding: '5px 10px', backgroundColor: u.role === 'موظف' ? '#e8f8f5' : '#f4f6f6', color: u.role === 'موظف' ? theme.success : theme.gray, borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' }}>{u.role}</span>
+                    <div style={{ color: theme.gray, marginTop: '5px' }}>{u.phone} {u.branch && `| 🏪 فرع: ${u.branch}`}</div>
                   </div>
-                  
-                  {u.role !== 'مدير' && (
-                    <button 
-                      onClick={() => deleteItem('users', u.id)} 
-                      style={{ padding: '8px 15px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-                    >
-                      حذف
-                    </button>
-                  )}
+                  {u.role !== 'مدير' && <button onClick={() => deleteItem('users', u.id)} style={{ padding: '8px 15px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* تبويب الفروع */}
         {activeTab === 'branches' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ color: theme.text, margin: 0 }}>إدارة الفروع</h2>
-              <button 
-                onClick={() => { 
-                  const n = prompt("اسم الفرع:"); 
-                  if(n) fetch(`${API_URL}/api/branches`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: n})}).then(fetchData); 
-                }} 
-                style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                + إضافة فرع
-              </button>
+              <button onClick={() => { const n = prompt("اسم الفرع:"); if(n) fetch(`${API_URL}/api/branches`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: n})}).then(fetchData); }} style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة فرع</button>
             </div>
-            
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
               {(branches || []).map(b => (
                 <div key={b.id} style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
                   <strong style={{ fontSize: '18px' }}>{b.name}</strong>
-                  <button 
-                    onClick={() => deleteItem('branches', b.id)} 
-                    style={{ padding: '5px 10px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-                  >
-                    حذف
-                  </button>
+                  <button onClick={() => deleteItem('branches', b.id)} style={{ padding: '5px 10px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* تبويب المنيو والمنتجات */}
         {activeTab === 'menu' && (
           <div>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <button 
-                onClick={() => { 
-                  const n = prompt("اسم القسم:"); 
-                  if(n) fetch(`${API_URL}/api/categories`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: n})}).then(fetchData); 
-                }} 
-                style={{ padding: '10px 20px', backgroundColor: theme.primary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                + إضافة قسم
-              </button>
-              <button 
-                onClick={addProduct} 
-                style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                + إضافة منتج بالصورة
-              </button>
+              <button onClick={() => { const n = prompt("اسم القسم:"); if(n) fetch(`${API_URL}/api/categories`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: n})}).then(fetchData); }} style={{ padding: '10px 20px', backgroundColor: theme.primary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة قسم</button>
+              <button onClick={addProduct} style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة منتج بالصورة</button>
             </div>
-            
             {(categories || []).map(c => (
               <div key={c.id} style={{ marginBottom: '30px', backgroundColor: theme.card, padding: '20px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>
                   <h3 style={{ margin: 0, color: theme.text }}>{c.name} (ID: {c.id})</h3>
-                  <button 
-                    onClick={() => deleteItem('categories', c.id)} 
-                    style={{ padding: '5px 10px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-                  >
-                    حذف القسم
-                  </button>
+                  <button onClick={() => deleteItem('categories', c.id)} style={{ padding: '5px 10px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف القسم</button>
                 </div>
-                
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
                   {(products || []).filter(p => p.categoryId === c.id).map(p => (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '10px', border: '1px solid #eee' }}>
                       <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                         <div style={{ width: '50px', height: '50px', backgroundColor: '#ddd', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-                          {p.imageUrl ? (
-                            <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <span style={{ fontSize: '24px' }}>🍔</span>
-                          )}
+                          {p.imageUrl ? <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '24px' }}>🍔</span>}
                         </div>
                         <div>
                           <strong style={{ fontSize: '16px' }}>{p.name}</strong>
                           <div style={{ color: theme.secondary, fontWeight: 'bold', marginTop: '5px' }}>{p.price} ريال</div>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => deleteItem('products', p.id)} 
-                        style={{ padding: '8px 15px', backgroundColor: theme.gray, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-                      >
-                        حذف
-                      </button>
+                      <button onClick={() => deleteItem('products', p.id)} style={{ padding: '8px 15px', backgroundColor: theme.gray, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>
                     </div>
                   ))}
                 </div>
@@ -562,14 +295,11 @@ function App() {
           </div>
         )}
 
-        {/* تبويب الإعدادات الشاملة */}
         {activeTab === 'settings' && (
           <div>
-            <h2 style={{ color: theme.text,
             <h2 style={{ color: theme.text, marginBottom: '20px' }}>⚙️ إعدادات التطبيقات الشاملة</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
               
-              {/* إعدادات تطبيق العميل */}
               <div style={{ backgroundColor: theme.card, padding: '25px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderTop: `5px solid ${theme.secondary}` }}>
                 <h3 style={{ color: theme.primary, marginTop: 0 }}>📱 تطبيق العميل</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -588,7 +318,6 @@ function App() {
                 </div>
               </div>
 
-              {/* إعدادات تطبيق الفرع */}
               <div style={{ backgroundColor: theme.card, padding: '25px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderTop: `5px solid ${theme.warning}` }}>
                 <h3 style={{ color: theme.primary, marginTop: 0 }}>👨‍🍳 تطبيق الفرع (المطبخ)</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -603,7 +332,6 @@ function App() {
                 </div>
               </div>
 
-              {/* إعدادات لوحة الإدارة */}
               <div style={{ backgroundColor: theme.card, padding: '25px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderTop: `5px solid ${theme.success}` }}>
                 <h3 style={{ color: theme.primary, marginTop: 0 }}>👑 لوحة الإدارة</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>

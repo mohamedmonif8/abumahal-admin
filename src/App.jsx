@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
-function App() {
+export default function App() {
+  // ================= State Management =================
   const [admin, setAdmin] = useState(() => {
     try { return JSON.parse(localStorage.getItem('admin_user')) || null; } 
     catch (error) { return null; }
@@ -17,24 +18,31 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [toast, setToast] = useState(null);
 
+  // إعدادات التطبيق
   const [settings, setSettings] = useState(() => {
     try { 
       return JSON.parse(localStorage.getItem('global_app_settings')) || {
-        customer: { name: 'مطعم أبو مهل', logo: '', welcome: 'أهلاً بك في مطعمنا! 🍔' },
+        customer: { name: 'مطعم أبو محل', logo: '', welcome: 'أهلاً بك في مطعمنا! 🍔' },
         branch: { name: 'بوابة المطبخ', logo: '' },
         admin: { name: 'الإدارة المركزية', logo: '' }
       }; 
     } catch (error) { return null; }
   });
 
+  // نظام النوافذ المنبثقة (الإبداعي)
+  const [modal, setModal] = useState({ isOpen: false, type: '', action: '', data: null });
+  const [formData, setFormData] = useState({});
+
   const API_URL = 'https://abumahal-backend.onrender.com';
 
   const theme = {
     primary: '#1a252f', secondary: '#e31837', bg: '#f4f7f6', card: '#ffffff',
-    text: '#2c3e50', gray: '#95a5a6', success: '#27ae60', warning: '#f39c12', danger: '#e74c3c'
+    text: '#2c3e50', gray: '#95a5a6', success: '#27ae60', warning: '#f39c12', danger: '#e74c3c',
+    glass: 'rgba(255, 255, 255, 0.95 )'
   };
 
-  useEffect(( ) => {
+  // ================= Effects & Fetching =================
+  useEffect(() => {
     if (admin) localStorage.setItem('admin_user', JSON.stringify(admin));
     else localStorage.removeItem('admin_user');
   }, [admin]);
@@ -74,6 +82,7 @@ function App() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  // ================= Handlers =================
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -88,50 +97,118 @@ function App() {
     } catch (error) { showToast("خطأ في الاتصال بالخادم"); }
   };
 
-  const addEmployee = async () => {
-    const name = prompt("اسم الموظف:");
-    const empPhone = prompt("رقم جوال الموظف:");
-    const empPass = prompt("الرقم السري للموظف:");
-    const branch = prompt(`اختر الفرع:\n${branches.map(b => b.name).join(' | ')}`);
-    if (!name || !empPhone || !empPass || !branch) return showToast("يجب إدخال جميع البيانات");
-    try {
-      await fetch(`${API_URL}/api/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone: empPhone, password: empPass, role: 'موظف', branch })
-      });
-      fetchData(); showToast("تمت إضافة الموظف بنجاح");
-    } catch (error) { showToast("حدث خطأ"); }
+  const saveSettings = () => {
+    localStorage.setItem('global_app_settings', JSON.stringify(settings));
+    showToast("تم حفظ إعدادات التطبيقات بنجاح ✅");
   };
 
-  const addProduct = async () => {
-    if (categories.length === 0) return showToast("الرجاء إضافة قسم أولاً!");
-    const name = prompt("اسم المنتج:");
-    const price = prompt("السعر:");
-    const imageUrl = prompt("رابط صورة المنتج (اختياري):") || "";
-    const categoryId = prompt(`أدخل رقم القسم:\n${categories.map(c => `${c.id}: ${c.name}`).join('\n')}`);
-    if (!name || !price || !categoryId) return;
+  // ================= Modal & CRUD Logic =================
+  const openModal = (type, action, data = null) => {
+    setFormData(data || {});
+    setModal({ isOpen: true, type, action, data });
+  };
+
+  const closeModal = () => setModal({ isOpen: false, type: '', action: '', data: null });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const { type, action, data } = modal;
+    
+    // توجيه المسار بناءً على نوع العملية (إضافة أو تعديل)
+    let url = `${API_URL}/api/${type}`;
+    let method = 'POST';
+    
+    if (action === 'edit') {
+      url = `${API_URL}/api/${type}/${data.id}`;
+      method = 'PUT';
+    } else if (type === 'users' && action === 'add') {
+      url = `${API_URL}/api/register`; // مسار خاص بتسجيل الموظفين الجدد
+    }
+
     try {
-      await fetch(`${API_URL}/api/products`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, price: parseFloat(price), categoryId: parseInt(categoryId), imageUrl })
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       });
-      fetchData(); showToast("تمت إضافة المنتج بنجاح");
-    } catch (error) { showToast("حدث خطأ"); }
+      const result = await res.json();
+      if (result.error) return showToast(result.error);
+      
+      showToast(`تم ${action === 'add' ? 'تتم الإضافة' : 'التعديل'} بنجاح`);
+      fetchData(); closeModal();
+    } catch (error) { showToast("حدث خطأ أثناء الحفظ"); }
   };
 
   const deleteItem = async (type, id) => {
-    if (!window.confirm("هل أنت متأكد من الحذف؟")) return;
+    if (!window.confirm("هل أنت متأكد من الحذف؟ لا يمكن التراجع!")) return;
     try {
       await fetch(`${API_URL}/api/${type}/${id}`, { method: 'DELETE' });
       fetchData(); showToast("تم الحذف بنجاح");
     } catch (error) { showToast("حدث خطأ أثناء الحذف"); }
   };
 
-  const saveSettings = () => {
-    localStorage.setItem('global_app_settings', JSON.stringify(settings));
-    showToast("تم حفظ إعدادات التطبيقات بنجاح ✅");
+  // ================= Creative Modal Component =================
+  const Modal = () => {
+    if (!modal.isOpen) return null;
+    const titles = { users: 'الموظف', categories: 'القسم', products: 'المنتج', branches: 'الفرع' };
+    const inputStyle = { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', outline: 'none', fontSize: '16px', width: '100%', boxSizing: 'border-box' };
+
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, animation: 'fadeIn 0.3s' }}>
+        <div style={{ background: theme.glass, padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '500px', boxShadow: '0 15px 35px rgba(0,0,0,0.3)', transform: 'scale(1)', animation: 'slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
+          <h2 style={{ color: theme.primary, marginTop: 0, borderBottom: `2px solid ${theme.secondary}`, paddingBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
+            <span>{modal.action === 'add' ? '✨ إضافة' : '✏️ تعديل'} {titles[modal.type]}</span>
+            <span onClick={closeModal} style={{ cursor: 'pointer', color: theme.gray }}>✖</span>
+          </h2>
+          
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
+            
+            {/* حقول الموظفين */}
+            {modal.type === 'users' && (
+              <>
+                <input placeholder="الاسم" value={formData.name || ''} onChange={e=>setFormData({...formData, name: e.target.value})} required style={inputStyle} />
+                <input placeholder="رقم الجوال" value={formData.phone || ''} onChange={e=>setFormData({...formData, phone: e.target.value})} required style={inputStyle} />
+                {modal.action === 'add' && <input placeholder="الرقم السري" type="password" value={formData.password || ''} onChange={e=>setFormData({...formData, password: e.target.value})} required style={inputStyle} />}
+                <select value={formData.role || 'موظف'} onChange={e=>setFormData({...formData, role: e.target.value})} style={inputStyle}>
+                  <option value="موظف">موظف مطبخ</option><option value="مدير">مدير</option><option value="عميل">عميل</option>
+                </select>
+                {formData.role === 'موظف' && (
+                  <select value={formData.branch || ''} onChange={e=>setFormData({...formData, branch: e.target.value})} required style={inputStyle}>
+                    <option value="">اختر الفرع...</option>
+                    {branches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                  </select>
+                )}
+              </>
+            )}
+
+            {/* حقول الأقسام والفروع */}
+            {(modal.type === 'categories' || modal.type === 'branches') && (
+              <input placeholder={`اسم ${titles[modal.type]}`} value={formData.name || ''} onChange={e=>setFormData({...formData, name: e.target.value})} required style={inputStyle} />
+            )}
+            
+            {/* حقول المنتجات */}
+            {modal.type === 'products' && (
+              <>
+                <input placeholder="اسم المنتج" value={formData.name || ''} onChange={e=>setFormData({...formData, name: e.target.value})} required style={inputStyle} />
+                <input placeholder="السعر" type="number" step="0.01" value={formData.price || ''} onChange={e=>setFormData({...formData, price: parseFloat(e.target.value)})} required style={inputStyle} />
+                <input placeholder="رابط الصورة (اختياري)" value={formData.imageUrl || ''} onChange={e=>setFormData({...formData, imageUrl: e.target.value})} style={inputStyle} direction="ltr" />
+                <select value={formData.categoryId || ''} onChange={e=>setFormData({...formData, categoryId: parseInt(e.target.value)})} required style={inputStyle}>
+                  <option value="">اختر القسم...</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+              <button type="submit" style={{ flex: 1, padding: '12px', background: theme.secondary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', transition: '0.2s' }}>💾 حفظ البيانات</button>
+              <button type="button" onClick={closeModal} style={{ flex: 1, padding: '12px', background: '#e0e0e0', color: theme.text, border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>إلغاء</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
   };
 
+  // ================= Login Screen =================
   if (!admin) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', direction: 'rtl', backgroundColor: theme.primary, fontFamily: 'sans-serif' }}>
@@ -151,11 +228,24 @@ function App() {
 
   const totalRevenue = (orders || []).filter(o => o.status === 'مكتمل').reduce((sum, o) => sum + (o.totalPrice || 0), 0);
 
+  // ================= Main Dashboard =================
   return (
     <div style={{ display: 'flex', minHeight: '100vh', direction: 'rtl', backgroundColor: theme.bg, fontFamily: 'sans-serif' }}>
-      {toast && <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#333', color: 'white', padding: '15px 30px', borderRadius: '30px', zIndex: 1000 }}>{toast}</div>}
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } 
+        @keyframes slideUp { from { transform: translateY(30px) scale(0.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: ${theme.gray}; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: ${theme.primary}; }
+      `}</style>
       
-      <div style={{ width: '260px', backgroundColor: theme.primary, color: 'white', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '2px 0 10px rgba(0,0,0,0.1)' }}>
+      {toast && <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#333', color: 'white', padding: '15px 30px', borderRadius: '30px', zIndex: 10000, boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>{toast}</div>}
+      
+      <Modal />
+      
+      {/* Sidebar */}
+      <div style={{ width: '260px', backgroundColor: theme.primary, color: 'white', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '2px 0 10px rgba(0,0,0,0.1)', zIndex: 10 }}>
         <div style={{ textAlign: 'center', borderBottom: '1px solid #34495e', paddingBottom: '20px', marginBottom: '20px' }}>
           {settings.admin.logo ? <img src={settings.admin.logo} alt="Logo" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '10px', border: '2px solid white' }} /> : <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>}
           <h3 style={{ margin: 0 }}>{settings.admin.name}</h3>
@@ -170,7 +260,7 @@ function App() {
           { id: 'menu', name: '🍔 المنتجات والصور' },
           { id: 'settings', name: '⚙️ إعدادات النظام' }
         ].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding: '15px', backgroundColor: activeTab === tab.id ? theme.secondary : 'transparent', color: 'white', border: 'none', borderRadius: '8px', textAlign: 'right', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>{tab.name}</button>
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding: '15px', backgroundColor: activeTab === tab.id ? theme.secondary : 'transparent', color: 'white', border: 'none', borderRadius: '8px', textAlign: 'right', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold', transition: '0.3s' }}>{tab.name}</button>
         ))}
         
         <div style={{ marginTop: 'auto' }}>
@@ -178,10 +268,12 @@ function App() {
         </div>
       </div>
 
+      {/* Content Area */}
       <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
         
+        {/* 1. Dashboard Tab */}
         {activeTab === 'dashboard' && (
-          <div>
+          <div style={{ animation: 'fadeIn 0.5s' }}>
             <h2 style={{ color: theme.text, marginBottom: '20px' }}>نظرة عامة</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
               <div style={{ backgroundColor: theme.card, padding: '25px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderRight: `5px solid ${theme.secondary}` }}>
@@ -200,8 +292,9 @@ function App() {
           </div>
         )}
 
+        {/* 2. Orders Tab */}
         {activeTab === 'orders' && (
-          <div>
+          <div style={{ animation: 'fadeIn 0.5s' }}>
             <h2 style={{ color: theme.text, marginBottom: '20px' }}>مراقبة الطلبات الحية</h2>
             <div style={{ backgroundColor: theme.card, borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
@@ -224,55 +317,67 @@ function App() {
           </div>
         )}
 
+        {/* 3. Users Tab */}
         {activeTab === 'users' && (
-          <div>
+          <div style={{ animation: 'fadeIn 0.5s' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ color: theme.text, margin: 0 }}>إدارة الموظفين والعملاء</h2>
-              <button onClick={addEmployee} style={{ padding: '10px 20px', backgroundColor: theme.secondary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة موظف جديد</button>
+              <button onClick={() => openModal('users', 'add')} style={{ padding: '10px 20px', backgroundColor: theme.secondary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(227, 24, 55, 0.3)' }}>+ إضافة مستخدم جديد</button>
             </div>
             <div style={{ display: 'grid', gap: '15px' }}>
               {(users || []).map(u => (
                 <div key={u.id} style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
                   <div>
                     <strong style={{ fontSize: '18px' }}>{u.name}</strong>
-                    <span style={{ margin: '0 10px', padding: '5px 10px', backgroundColor: u.role === 'موظف' ? '#e8f8f5' : '#f4f6f6', color: u.role === 'موظف' ? theme.success : theme.gray, borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' }}>{u.role}</span>
+                    <span style={{ margin: '0 10px', padding: '5px 10px', backgroundColor: u.role === 'موظف' ? '#e8f8f5' : u.role === 'مدير' ? '#fef5e7' : '#f4f6f6', color: u.role === 'موظف' ? theme.success : u.role === 'مدير' ? theme.warning : theme.gray, borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' }}>{u.role}</span>
                     <div style={{ color: theme.gray, marginTop: '5px' }}>{u.phone} {u.branch && `| 🏪 فرع: ${u.branch}`}</div>
                   </div>
-                  {u.role !== 'مدير' && <button onClick={() => deleteItem('users', u.id)} style={{ padding: '8px 15px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>}
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => openModal('users', 'edit', u)} style={{ padding: '8px 15px', backgroundColor: theme.warning, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>تعديل</button>
+                    {u.role !== 'مدير' && <button onClick={() => deleteItem('users', u.id)} style={{ padding: '8px 15px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
+        {/* 4. Branches Tab */}
         {activeTab === 'branches' && (
-          <div>
+          <div style={{ animation: 'fadeIn 0.5s' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ color: theme.text, margin: 0 }}>إدارة الفروع</h2>
-              <button onClick={() => { const n = prompt("اسم الفرع:"); if(n) fetch(`${API_URL}/api/branches`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: n})}).then(fetchData); }} style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة فرع</button>
+              <button onClick={() => openModal('branches', 'add')} style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(39, 174, 96, 0.3)' }}>+ إضافة فرع</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
               {(branches || []).map(b => (
                 <div key={b.id} style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
                   <strong style={{ fontSize: '18px' }}>{b.name}</strong>
-                  <button onClick={() => deleteItem('branches', b.id)} style={{ padding: '5px 10px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => openModal('branches', 'edit', b)} style={{ padding: '5px 10px', backgroundColor: theme.warning, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>تعديل</button>
+                    <button onClick={() => deleteItem('branches', b.id)} style={{ padding: '5px 10px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
+        {/* 5. Menu Tab */}
         {activeTab === 'menu' && (
-          <div>
+          <div style={{ animation: 'fadeIn 0.5s' }}>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <button onClick={() => { const n = prompt("اسم القسم:"); if(n) fetch(`${API_URL}/api/categories`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: n})}).then(fetchData); }} style={{ padding: '10px 20px', backgroundColor: theme.primary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة قسم</button>
-              <button onClick={addProduct} style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة منتج بالصورة</button>
+              <button onClick={() => openModal('categories', 'add')} style={{ padding: '10px 20px', backgroundColor: theme.primary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة قسم</button>
+              <button onClick={() => openModal('products', 'add')} style={{ padding: '10px 20px', backgroundColor: theme.success, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>+ إضافة منتج بالصورة</button>
             </div>
             {(categories || []).map(c => (
               <div key={c.id} style={{ marginBottom: '30px', backgroundColor: theme.card, padding: '20px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>
                   <h3 style={{ margin: 0, color: theme.text }}>{c.name} (ID: {c.id})</h3>
-                  <button onClick={() => deleteItem('categories', c.id)} style={{ padding: '5px 10px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف القسم</button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => openModal('categories', 'edit', c)} style={{ padding: '5px 10px', backgroundColor: theme.warning, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>تعديل القسم</button>
+                    <button onClick={() => deleteItem('categories', c.id)} style={{ padding: '5px 10px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف القسم</button>
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
                   {(products || []).filter(p => p.categoryId === c.id).map(p => (
@@ -286,7 +391,10 @@ function App() {
                           <div style={{ color: theme.secondary, fontWeight: 'bold', marginTop: '5px' }}>{p.price} ريال</div>
                         </div>
                       </div>
-                      <button onClick={() => deleteItem('products', p.id)} style={{ padding: '8px 15px', backgroundColor: theme.gray, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button onClick={() => openModal('products', 'edit', p)} style={{ padding: '8px 15px', backgroundColor: theme.warning, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>تعديل</button>
+                        <button onClick={() => deleteItem('products', p.id)} style={{ padding: '8px 15px', backgroundColor: theme.danger, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>حذف</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -295,8 +403,9 @@ function App() {
           </div>
         )}
 
+        {/* 6. Settings Tab */}
         {activeTab === 'settings' && (
-          <div>
+          <div style={{ animation: 'fadeIn 0.5s' }}>
             <h2 style={{ color: theme.text, marginBottom: '20px' }}>⚙️ إعدادات التطبيقات الشاملة</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
               
@@ -357,5 +466,3 @@ function App() {
     </div>
   );
 }
-
-export default App;
